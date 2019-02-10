@@ -1,5 +1,58 @@
-<use name="FWCore/Framework"/>
-<use name="FWCore/PluginManager"/>
-<use name="FWCore/ParameterSet"/>
+<use name="root"/>
+<use name="rootgraphics"/>
+
+<use name="CalibMuon/DTDigiSync"/>
+
+<use name="DQMServices/Core"/>
+
+<use name="DataFormats/LTCDigi"/>
+<use name="DataFormats/L1GlobalMuonTrigger"/>
+<use name="DataFormats/Luminosity"/>
+<use name="DataFormats/L1TMuon"/>
+<use name="DataFormats/L1GlobalTrigger"/>
+<use name="DataFormats/L1DTTrackFinder"/>
+<use name="DataFormats/MuonReco"/>
 <use name="DataFormats/TrackReco"/>
-<flags EDM_PLUGIN="1"/>
+<use name="DataFormats/HLTReco"/>
+<use name="DataFormats/VertexReco"/>
+<use name="DataFormats/MuonData"/>
+<use name="DataFormats/Common"/>
+<use name="DataFormats/L1Trigger"/>
+<use name="DataFormats/BeamSpot"/>
+<use name="DataFormats/CSCRecHit"/>
+<use name="DataFormats/RPCRecHit"/>
+<use name="DataFormats/DTRecHit"/>
+<use name="DataFormats/DTDigi"/>
+<use name="DataFormats/RPCDigi"/>
+<use name="DataFormats/MuonDetId"/>
+<use name="DataFormats/GeometrySurface"/>
+<use name="DataFormats/Scalers"/>
+
+<use name="CondFormats/L1TObjects"/>
+<use name="CondFormats/DataRecord"/>
+
+<use name="FWCore/Framework"/>
+<use name="FWCore/ParameterSet"/>
+<use name="FWCore/PluginManager"/>
+<use name="FWCore/Utilities"/>
+<use name="FWCore/Common"/>
+
+<use name="Geometry/Records"/>
+<use name="Geometry/CommonDetUnit"/>
+<use name="Geometry/DTGeometry"/>
+
+<use name="RecoMuon/TrackingTools"/>
+
+<use name="TrackingTools/GeomPropagators"/>
+<use name="TrackingTools/TransientTrack"/>
+<use name="TrackingTools/TrajectoryState"/>
+<use name="TrackingTools/Records"/>
+
+<use name="CommonTools/UtilAlgos"/>
+
+<use name="SimDataFormats/DigiSimLinks"/>
+<use name="SimDataFormats/PileupSummaryInfo"/>
+
+<use name="MagneticField/Engine"/>
+
+<flags   EDM_PLUGIN="1"/>

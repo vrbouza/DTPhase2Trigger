@@ -231,7 +231,7 @@ class TransformHelper:
                 if (event.dtsegm4D_station[i] != mb and mb != -1): continue
                 if (event.dtsegm4D_sector[i]  != se and se != -1): continue
                 for idtsegments in range(event.dtsegm4D_phinhits[i]):
-                    if (event.dtsegm4D_phi_hitsSuperLayer[i][idtsegments] == 2): continue # we demand that more than two hits per segment coincide
+                    if (event.dtsegm4D_phi_hitsSuperLayer[i][idtsegments] == 2): continue
     ###SF                 print "dtsegm4D_phi_hitsPos %f" %(event.dtsegm4D_phi_hitsPos[i][idtsegments])
     ###SF                 print "dtsegm4D_phi_hitsPosCh %f" %(event.dtsegm4D_phi_hitsPosCh[i][idtsegments])
     ###SF                 print "dtsegm4D_phi_hitsPosErr %f" %(event.dtsegm4D_phi_hitsPosErr[i][idtsegments])
