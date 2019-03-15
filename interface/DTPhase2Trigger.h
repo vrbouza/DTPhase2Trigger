@@ -61,6 +61,7 @@
 #include "DataFormats/DTDigi/interface/DTDigi.h"
 #include "DataFormats/DTDigi/interface/DTDigiCollection.h"
 #include "DataFormats/DTDigi/interface/DTLocalTriggerCollection.h"
+#include "DataFormats/MuonDetId/interface/DTWireId.h"
 #include "DataFormats/RPCDigi/interface/RPCDigi.h"
 #include "DataFormats/RPCDigi/interface/RPCDigiCollection.h"
 #include "DataFormats/RPCRecHit/interface/RPCRecHitCollection.h"
@@ -86,9 +87,12 @@
 
 #include "CondFormats/L1TObjects/interface/L1GtTriggerMenu.h"
 #include "CondFormats/DataRecord/interface/L1GtTriggerMenuRcd.h"
+#include "CondFormats/DTObjects/interface/DTMtime.h"
+#include "CondFormats/DataRecord/interface/DTMtimeRcd.h"
 
 #include "CalibMuon/DTDigiSync/interface/DTTTrigBaseSync.h"
 #include "CalibMuon/DTDigiSync/interface/DTTTrigSyncFactory.h"
+// #include "CalibMuon/DTCalibration/plugins/DTCalibrationMap.h"
 
 #include "Geometry/Records/interface/GlobalTrackingGeometryRecord.h"
 #include "Geometry/Records/interface/MuonGeometryRecord.h"  // New trying to avoid crashes in the topology functions
@@ -117,6 +121,8 @@
 #include "TString.h"
 #include "TVectorF.h"
 #include "TClonesArray.h"
+#include "TGaxis.h"
+
 
 // Other headers
 #include "UserCode/DTPhase2Trigger/interface/DefineTreeVariables.h"
@@ -128,26 +134,20 @@ using namespace cms;
 // namespace fs = std::experimental::filesystem;
 
 // Enums or/and const declarations & definitions
-const Float_t ZPOS[] = {0., 1.3, 2.6, 3.9, 23.8, 25.1, 26.4, 27.7};  // in cm
 const Float_t wirepos_x[] = {-95.0142, -97.1103, -95.0094, -97.1046, 113.4, 115.5, 113.4, 115.5, -97.0756, -99.1991, -97.0935, -99.1933};
 const Float_t wirepos_z[] = {0., 1.3, 2.6, 3.9, 99999., 99999., 99999., 99999., 23.8, 25.1, 26.4, 27.7};  // in cm
 
-const Float_t cellLength = 4.2;  // The length of a cell
+const Float_t cellLength  = 4.2;  // The length of a cell
 const Float_t cellSemiLength = cellLength/2;  // length from the wire to the end of the cell
 const Float_t cellQuarterLength = cellSemiLength/2;  // length from the wire to the middle of space between the border and the wire
-const Float_t chamberLength  = 210.;  // The length of the whole chamber
+const Float_t chamberLength  = 210.;  // The length of the whole chamber (MB1)
 
-const Float_t YCELLSIZE = 13.;  // in mm
-const Float_t XCELLSIZE = 40.;  // in mm, 50 cells for MB1
+const Float_t vdrift = 0.00545;  // in cm/ns
+// const Float_t vdrift = 6.5/386.74;  // in cm/ns ¿?¿??, de lo de Camilo
 
-const Float_t XMAX = 1990; // in mm, for MB1
-const Float_t YMAX = 290;  // in mm
-
-const Float_t NYBINS = 23; // each cell own bin, middle empty
-const Float_t NXBINS = 8000;
-
-const Float_t vdrift = 0.000545;  // in cm/ns
-
+const Int_t   timeOffset = 0;
+// const Int_t   flat_calib = 325;
+const Int_t   flat_calib = 0;
 
 
 // Other classes declarations
@@ -159,9 +159,12 @@ class TransformHelper {
     
     
     // Methods
-    void initialise(UInt_t neventsmax = 20000, Int_t mb = 2, Int_t wh = 0, Int_t se = -1);
+    void initialise(UInt_t neventsmax = 20000, Int_t mb = 2, Int_t wh = 0, Int_t se = -1, Bool_t db = false);
     void run(std::vector<Short_t> dtsegm4D_wheel, std::vector<Short_t> dtsegm4D_sector, std::vector<Short_t> dtsegm4D_station, TClonesArray *dtsegm4D_phi_hitsSuperLayer, TClonesArray *dtsegm4D_phi_hitsLayer, TClonesArray *dtsegm4D_phi_hitsPos, TClonesArray *dtsegm4D_phi_hitsSide, TClonesArray *dtsegm4D_phi_hitsWire, std::vector<Short_t> dtsegm4D_phinhits);
+    void run(std::vector<Short_t> digi_wheel, std::vector<Short_t> digi_sector, std::vector<Short_t> digi_station, std::vector<Short_t> digi_sl, std::vector<Short_t> digi_layer, std::vector<Short_t> digi_wire, std::vector<Float_t> digi_time);
+    void run_one(edm::Handle<DTDigiSimLinkCollection> dtdigisSim, const DTGeometry* dtGeom_, const edm::Event& iEv, DTTTrigBaseSync *theSync, const DTMtime* mTimeMap);
     void finish();
+    void finish_one();
     
     
     // Class' variables & objects
@@ -169,11 +172,13 @@ class TransformHelper {
     
     UInt_t  binsangle;
     UInt_t  binsrho;
-    UInt_t  nhits, nsegs, actualhits;
+    UInt_t  nhits, nsegs, actualhits, nseldigis;
     UInt_t  nhitsmax;
     
     Bool_t  doVarious;
     
+    Int_t  chamber, wheel, sector;
+    TString txtwh, txtmb, txtse;
 //     edm::Handle<std::vector<std::vector<Int_t>>>* dtsegm4D_wheel;
 //     edm::Handle<std::vector<std::vector<Int_t>>>* dtsegm4D_sector;
 //     edm::Handle<std::vector<std::vector<Int_t>>>* dtsegm4D_station;
@@ -186,32 +191,38 @@ class TransformHelper {
     
   private:
     // Methods
-    Float_t getHitPosition(Int_t* sl, Int_t* l);
-    std::pair<Float_t, Float_t> getLRHitPosition(Int_t* sl, Int_t* l, Float_t* pos, Int_t* lr);
+    Float_t getHitPosition(Int_t sl, Int_t l);
+    std::pair<Float_t, Float_t> getLRHitPosition(Int_t sl, Int_t l, Float_t pos, Int_t lr);
     std::pair<Float_t, Float_t> getWirePosition(Int_t sl, Int_t l, Int_t wire);
-    std::vector<Float_t> getDigiPosition(Int_t sl, Int_t l, Int_t wire, Float_t dtime);
+    std::vector<Float_t>        getDigiPosition(Int_t sl, Int_t l, Int_t wire, Float_t dtime);
+    std::pair<Float_t, Float_t> getDigiPosition(Float_t xpos, Float_t dtime);
+    std::pair<Float_t, Float_t> getDigiPosition(Float_t xpos, Float_t dtime, Float_t vd);
     TH2D* makeHoughTransform(TGraph* occupancy);
 //     std::vector<std::pair<Float_t, Float_t>>   findLocalMaxima(TH2D* histo2D);
-    std::pair<Float_t, Float_t>   findBestSegment(TH2D* linespace);
+    std::pair<Float_t, Float_t> findBestSegment(TH2D* linespace);
     
+    Float_t getPhase2Time(const edm::Event& iEv, Int_t w, Int_t c, Int_t s, Int_t sl, Int_t l, Int_t wi, Float_t digiTime, DTTTrigBaseSync *theSync);
+    
+    void DrawGraphWithReversedYAxis(TGraph *g);
     void print_canvas(TCanvas* canvas, TString output_name_without_ext);
     void getvalues(const edm::Event& event);
-    
     
     // Class' variables & objects
     UInt_t nevents, n_events_limit;
     
-    Int_t  chamber, wheel, sector;
+    Float_t xlowlim, xhighlim, zlowlim, zhighlim;
     
     Bool_t filled;
-    
-    TString txtwh, txtmb, txtse;
+    Bool_t debug;
+    Bool_t doDigis;
     
     TGraph* occupancy; TGraph* actualocc;
     
     TH2D* linespace;
     
     TH1D* linespace1D;
+    
+    TF1* tmpsegm;
 };
 
 
@@ -239,6 +250,8 @@ class DTPhase2Trigger : public edm::one::EDAnalyzer<edm::one::SharedResources>  
     // Other definitions
     UInt_t n_events_limit = 20000;
     Bool_t doFanae        = false;
+    Bool_t doDigis        = true;
+    Bool_t doOne          = true;
 
     TransformHelper* hlpr;
     
@@ -250,11 +263,15 @@ class DTPhase2Trigger : public edm::one::EDAnalyzer<edm::one::SharedResources>  
     virtual void endJob() override;
     
     void fill_dtsegments_variables(edm::Handle<DTRecSegment4DCollection> segments4D, const DTGeometry* dtGeom_);
+    void fill_digi_variables(edm::Handle<DTDigiCollection> dtdigis);
+    void fill_digi_variablesSim(edm::Handle<DTDigiSimLinkCollection> dtdigisSim);
     void fill_dtphi_info(const DTChamberRecSegment2D* phiSeg, const GeomDet* chamb);
     void fill_dtz_info(const DTSLRecSegment2D* zSeg, const GeomDet* geomDet);
     void clear_Arrays();
     void initialize_Tree_variables();
 //     void ttreegeneratorinit(const edm::ParameterSet& pset);
+    Float_t getPhase2Time(const edm::Event& iEv, Int_t w, Int_t c, Int_t s, Int_t sl, Int_t l, Int_t wi, Float_t digiTime);
+    
     
     DTTTrigBaseSync *theSync;
     
@@ -306,6 +323,8 @@ class DTPhase2Trigger : public edm::one::EDAnalyzer<edm::one::SharedResources>  
    
     Bool_t OnlyBarrel_;
 
+    Bool_t debug;
+
     Bool_t runOnRaw_;
     Bool_t runOnSimulation_;
     Bool_t runOnDigiSimLinks_; // To use to read simulation digi sim links
@@ -317,6 +336,7 @@ class DTPhase2Trigger : public edm::one::EDAnalyzer<edm::one::SharedResources>  
 
     std::vector<std::string> trigFilterNames_;
 
+    const DTMtime* mTimeMap;
     edm::ESHandle<MagneticField> theBField;
     edm::ESHandle<Propagator> propagatorAlong;
     edm::ESHandle<Propagator> propagatorOpposite;
@@ -353,5 +373,6 @@ class DTPhase2Trigger : public edm::one::EDAnalyzer<edm::one::SharedResources>  
     // End of declarations from dttree production   ========================================
     
 };
+
 
 #endif

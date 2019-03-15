@@ -151,6 +151,8 @@ DTPhase2Trigger::DTPhase2Trigger(const edm::ParameterSet& pset):
   ihlt            = 0;
   // END CONSTRUCTOR =============================================
   
+  debug = true;
+  
   hlpr = new TransformHelper();
   hlpr->doVarious = false;
   
@@ -173,9 +175,7 @@ DTPhase2Trigger::~DTPhase2Trigger() {
 //
 
 // ------------ method called once each job just before starting event loop  ------------
-void
-DTPhase2Trigger::beginJob()
-{
+void DTPhase2Trigger::beginJob() {
 //   h_digiTDC        = new TH1F("h_digiTDC","h_digiTDC",1601,-0.5,1600.5);
 //   h_digiTDCPhase2  = new TH1F("h_digiTDCPhase2","h_digiTDCPhase2",3563*32,-0.5,3563*32+1);
 // 
@@ -184,8 +184,25 @@ DTPhase2Trigger::beginJob()
   
   
   initialize_Tree_variables();
-  hlpr->initialise();
+//   hlpr->initialise(20000, -5, -5, -5, true);
+  hlpr->initialise(20000, 1, 0, -1, true);
   
+  if ((doOne) && (hlpr->chamber == -1 || hlpr->wheel == -3 || hlpr->sector == -1)) {
+    cout << "> Taking actual chamber digis, not making toy chamber situations. \'All\' classifications will be set either to chamber 1, to wheel -2 or to sector 1." << endl;
+    if (hlpr->chamber == -1) hlpr->chamber = 1;
+    if (hlpr->wheel   == -3) hlpr->wheel   = -2;
+    if (hlpr->sector  == -1) hlpr->sector  = 1;
+    hlpr->txtwh = ""; hlpr->txtmb = ""; hlpr->txtse = "";
+  
+    if (hlpr->wheel == -3) hlpr->txtwh = "ALL";
+    else                   hlpr->txtwh += hlpr->wheel;
+    
+    if (hlpr->chamber == -1) hlpr->txtmb = "ALL";
+    else                     hlpr->txtmb += hlpr->chamber;
+    
+    if (hlpr->sector == -1) hlpr->txtse = "ALL";
+    else                    hlpr->txtse += hlpr->sector;
+  }
 }
 
 
@@ -257,8 +274,13 @@ DTPhase2Trigger::analyze(const edm::Event& event, const edm::EventSetup& context
 
   edm::ESHandle<DTGeometry> dtGeomH;
   context.get<MuonGeometryRecord>().get(dtGeomH);
-//   const DTGeometry* dtGeom_ = dtGeomH.product();
-
+  const DTGeometry* dtGeom_ = dtGeomH.product();
+  
+  ESHandle<DTMtime> mTime;
+  context.get<DTMtimeRcd>().get(mTime);
+  mTimeMap = &*mTime;
+  
+  
   //retrieve the beamspot info
   if (!localDTmuons_) {
     edm::Handle<reco::BeamSpot> recoBeamSpotHandle;
@@ -404,10 +426,64 @@ DTPhase2Trigger::analyze(const edm::Event& event, const edm::EventSetup& context
       PV_Nvtx = -999;
     }
   }
+  
+  // DIGIS   ============================================================================= PA LLUEU!!!
+//   if (runOnRaw_ && !runOnDigiSimLinks_) fill_digi_variables(dtdigis);
+//   else   // Added to cope with simulation including Digis
+  if (runOnSimulation_ && runOnDigiSimLinks_) fill_digi_variablesSim(dtdigisSim);
+  
+//   if (debug) {
+//     cout << "Printeao de los tiempos de phase 2" << endl;
+//     for (UInt_t ind = 0; ind < digi_wheel.size(); ind++) {
+//       cout << "Digi num.: " << ind << endl;
+//       cout << "Tiempo de la fase 1: " << digi_time.at(ind) << endl;
+//       cout << "Tiempo de la fase 2: " << getPhase2Time(event, digi_wheel.at(ind), digi_station.at(ind), digi_sector.at(ind), digi_sl.at(ind), digi_layer.at(ind), digi_wire.at(ind), digi_time.at(ind)) << endl;
+//     }
+//   }
+  
+//   DTWireId tmpwireid(0, 1, 1, 1, 3, 5);
+//   Float_t vDrift = 0., resolution = 0.;
+//   const DTLayer* llll = dtGeom_->layer(tmpwireid);
+//   Int_t status = mTimeMap->get(llll->superLayer()->id(),vDrift,resolution,DTVelocityUnits::cm_per_ns);
+//   cout << "vdrift: " << vDrift << endl;
+  
+  //DT SEGMENTS
+  fill_dtsegments_variables(dtsegments4D, dtGeom_);
+
+//   //CSC SEGMENTS
+//   if(!localDTmuons_) fill_cscsegments_variables(cscsegments);
+// 
+//   //TwinMux
+//   if(runOnRaw_ && hasPhiTwinMuxIn) fill_twinmuxin_variables(localTriggerTwinMuxIn);
+//   if(runOnRaw_ && hasPhiTwinMuxOut) fill_twinmuxout_variables(localTriggerTwinMuxOut);
+//   if(runOnRaw_ && hasThetaTwinMux) fill_twinmuxth_variables(localTriggerTwinMux_Th);
+// 
+//   //MUONS
+//   if(!localDTmuons_) fill_muon_variables(MuList,hltEvent,dtGeom_);
+// 
+//   //GMT
+//   
+//   if(!localDTmuons_ && runLegacy_gmt_) fill_gmt_variables(gmt); // legacy
+// 
+//   //GT
+//   if(runOnRaw_ && !localDTmuons_) fill_gt_variables(gtrc,menu); // legacy
+//     
+//   //HLT
+//   if(!localDTmuons_) fill_hlt_variables(event,hltresults);
+// 
+//   // RPC
+//   if(!localDTmuons_) fill_rpc_variables(event,rpcHits);
+//   
+//   if(!localDTmuons_) analyzeBMTF(event);
+// 
+//   if(!localDTmuons_)  analyzeRPCunpacking(event);
+// 
+//   if(!localDTmuons_)  analyzeUnpackingRpcRecHit(event);
+  
   // END OF DTTREE PRODUCTION PRELIMINARIES ==========================================
-  
-  hlpr->run(segm4D_wheel, segm4D_sector, segm4D_station, segm4D_phiHits_SuperLayer, segm4D_phiHits_Layer, segm4D_phiHits_Pos, segm4D_phiHits_Side, segm4D_phiHits_Wire, segm4D_phinhits);
-  
+  if (doOne)         hlpr->run_one(dtdigisSim, dtGeom_, event, theSync, mTimeMap);
+  else if (!doDigis) hlpr->run(segm4D_wheel, segm4D_sector, segm4D_station, segm4D_phiHits_SuperLayer, segm4D_phiHits_Layer, segm4D_phiHits_Pos, segm4D_phiHits_Side, segm4D_phiHits_Wire, segm4D_phinhits);
+  else               hlpr->run(digi_wheel, digi_sector, digi_station, digi_sl, digi_layer, digi_wire, digi_time);
 }
 
 
@@ -419,18 +495,18 @@ DTPhase2Trigger::endJob() {
 
 //   h_digiTDC->Write();
 //   h_digiTDCPhase2->Write();
-//   
+//
 //   h_digiTime->Write();
 //   h_digiTimePhase2->Write();
   
-  hlpr->finish();
+  if (!doOne) hlpr->finish();
+  else        hlpr->finish_one();
   
 }
 
 
 // ------------ method fills 'descriptions' with the allowed parameters for the module  ------------
-void
-DTPhase2Trigger::fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
+void DTPhase2Trigger::fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
   //The following says we do not know what parameters are allowed so do no validation
   // Please change this to state exactly what you do use, even if it is no parameters
   edm::ParameterSetDescription desc;
@@ -948,6 +1024,55 @@ void DTPhase2Trigger::fill_dtphi_info(const DTChamberRecSegment2D* phiSeg, const
   return;
 }
 
+void DTPhase2Trigger::fill_digi_variables(edm::Handle<DTDigiCollection> dtdigis) {
+  idigis = 0;
+  for (DTDigiCollection::DigiRangeIterator dtLayerIdIt = dtdigis->begin(); dtLayerIdIt!=dtdigis->end(); dtLayerIdIt++){
+    for (DTDigiCollection::const_iterator digiIt = ((*dtLayerIdIt).second).first;digiIt!=((*dtLayerIdIt).second).second; ++digiIt){
+      if(idigis >= digisSize_) return;
+      digi_wheel.push_back((*dtLayerIdIt).first.wheel());
+      digi_sector.push_back((*dtLayerIdIt).first.sector());
+      digi_station.push_back((*dtLayerIdIt).first.station());
+      digi_sl.push_back((*dtLayerIdIt).first.superLayer());
+      digi_layer.push_back((*dtLayerIdIt).first.layer());
+      digi_wire.push_back((*digiIt).wire());
+      digi_time.push_back((*digiIt).time());
+      idigis++;
+    }
+  }
+  return;
+}
+
+void DTPhase2Trigger::fill_digi_variablesSim(edm::Handle<DTDigiSimLinkCollection> dtdigisSim) {
+  idigis = 0;
+//   Int_t ind = 0;
+  for (DTDigiSimLinkCollection::DigiRangeIterator dtLayerIdIt = dtdigisSim->begin(); dtLayerIdIt!=dtdigisSim->end(); dtLayerIdIt++){
+//     if (debug) cout << "Colec. num." << ind << endl;
+    for (DTDigiSimLinkCollection::const_iterator digiIt = ((*dtLayerIdIt).second).first;digiIt!=((*dtLayerIdIt).second).second; ++digiIt){
+//       if (debug) cout << "\nDigi num." << idigis << endl;
+      if(idigis >= digisSize_) return;
+      digi_wheel.push_back((*dtLayerIdIt).first.wheel());
+      digi_sector.push_back((*dtLayerIdIt).first.sector());
+      digi_station.push_back((*dtLayerIdIt).first.station());
+      digi_sl.push_back((*dtLayerIdIt).first.superLayer());
+      digi_layer.push_back((*dtLayerIdIt).first.layer());
+      digi_wire.push_back((*digiIt).wire());
+      digi_time.push_back((*digiIt).time());
+      
+//       if (debug) {
+//         cout << "Ruedina: " << digi_wheel.back() << endl;
+//         cout << "Sector: " << digi_sector.back() << endl;
+//         cout << "Camara: " << digi_station.back() << endl;
+//         cout << "SL: " << digi_sl.back() << endl;
+//         cout << "L: " << digi_layer.back() << endl;
+//         cout << "Cable: " << digi_wire.back() << endl;
+//         cout << "Tiempo: " << digi_time.back() << "\n" << endl;
+//       }
+      idigis++;
+    }
+//     ind++;
+  }
+  return;
+}
 
 // void DTPhase2Trigger::ttreegeneratorinit(const edm::ParameterSet& pset):
 //       rpcToken_(consumes<MuonDigiCollection<RPCDetId,RPCDigi> > (pset.getParameter<edm::InputTag>("rpcLabel"))),
@@ -1061,6 +1186,14 @@ void DTPhase2Trigger::fill_dtphi_info(const DTChamberRecSegment2D* phiSeg, const
 //   ihlt         = 0;
 // }
 
+Float_t DTPhase2Trigger::getPhase2Time(const edm::Event& iEv, Int_t w, Int_t c, Int_t s, Int_t sl, Int_t l, Int_t wi, Float_t digiTime) {
+  DTWireId wireId(w, c, s, sl, l, wi);
+  cout << "THESYNC " << theSync->offset(wireId) << endl;
+  cout << "EMULATOROFFSET " << theSync->emulatorOffset(wireId) << endl;
+  if (flat_calib != 0) return (digiTime - Float_t(flat_calib)     + 25.0 * iEv.eventAuxiliary().bunchCrossing() + Float_t(timeOffset));
+  else                 return (digiTime - theSync->offset(wireId) + 25.0 * iEv.eventAuxiliary().bunchCrossing() + Float_t(timeOffset));
+}
+
 
 // ================================
 // ================================ Methods from other classes that are not the analyser ==============================
@@ -1069,18 +1202,23 @@ TransformHelper::TransformHelper() {};
 TransformHelper::~TransformHelper() {};
 
 
-Float_t TransformHelper::getHitPosition(Int_t* sl, Int_t* l) {
-  Int_t index = (*sl - 1) * 4 + (*l - 1); // Index for a given SL and layer
+Float_t TransformHelper::getHitPosition(Int_t sl, Int_t l) {
+  Int_t index = (sl - 1) * 4 + (l - 1); // Index for a given SL and layer
   return wirepos_z[index];
 }
 
+Float_t TransformHelper::getPhase2Time(const edm::Event& iEv, Int_t w, Int_t c, Int_t s, Int_t sl, Int_t l, Int_t wi, Float_t digiTime, DTTTrigBaseSync *theSync) {
+  DTWireId wireId(w, c, s, sl, l, wi);
+  if (flat_calib != 0) return (digiTime - Float_t(flat_calib)     + 25.0 * iEv.eventAuxiliary().bunchCrossing() + Float_t(timeOffset));
+  else                 return (digiTime - theSync->offset(wireId) + 25.0 * iEv.eventAuxiliary().bunchCrossing() + Float_t(timeOffset));
+}
 
-std::pair<Float_t, Float_t> TransformHelper::getLRHitPosition(Int_t* sl, Int_t* l, Float_t* pos, Int_t* lr) {
-  Int_t index = (*sl - 1) * 4 + (*l - 1); // Index for a given SL and layer
-  Float_t relativeChamberPosition = (*pos - wirepos_x[index]) + chamberLength + 1.35;
+std::pair<Float_t, Float_t> TransformHelper::getLRHitPosition(Int_t sl, Int_t l, Float_t pos, Int_t lr) {
+  Int_t index = (sl - 1) * 4 + (l - 1); // Index for a given SL and layer
+  Float_t relativeChamberPosition = (pos - wirepos_x[index]) + chamberLength + 1.35;
   Float_t relativeCellPosition    = fmod(relativeChamberPosition, cellLength);
   Float_t positionInCell          = relativeCellPosition - cellSemiLength;
-  return {*pos, *pos + TMath::Power(-1, *lr) * 2 * abs(positionInCell)};
+  return {pos, pos + TMath::Power(-1, lr) * 2 * abs(positionInCell)};
 }
 
 
@@ -1102,6 +1240,9 @@ std::vector<Float_t> TransformHelper::getDigiPosition(Int_t sl, Int_t l, Int_t w
   return res;
 }
 
+std::pair<Float_t, Float_t> TransformHelper::getDigiPosition(Float_t xpos, Float_t dtime, Float_t vd) {
+  return {xpos - dtime * vd, xpos + dtime * vd};
+}
 
 TH2D* TransformHelper::makeHoughTransform(TGraph* occupancy) {
   TH2D *linespace = new TH2D("linespace", "linespace", binsangle, 0, TMath::TwoPi(), binsrho, -250., 250.);
@@ -1189,7 +1330,7 @@ void TransformHelper::print_canvas(TCanvas* canvas, TString output_name_without_
 }
 
 
-void TransformHelper::initialise(UInt_t neventsmax, Int_t mb, Int_t wh, Int_t se) {
+void TransformHelper::initialise(UInt_t neventsmax, Int_t mb, Int_t wh, Int_t se, Bool_t db) {
   cout << "> Initialising things..." << endl;
   if ((mb <= 0) || (mb > 4))  chamber = -1;
   else                        chamber = mb;
@@ -1216,54 +1357,87 @@ void TransformHelper::initialise(UInt_t neventsmax, Int_t mb, Int_t wh, Int_t se
   linespace   = new TH2D();    // Dual (or line) space plot.
   linespace1D = new TH1D();
   
+  binsangle= 3600;
+  binsrho  = 500;
   nevents  = 0;
   n_events_limit = neventsmax;
-  nhitsmax = 8;
+  nhitsmax = 15;
   filled   = false;
+  doDigis  = true;
+  debug    = db;
   path     = "/nfs/fanae/user/vrbouza/www/Proyectos/trigger_primitives/results/houghtrans/";
+  tmpsegm  = 0;
   
+  xlowlim = 0; xhighlim = 0; zlowlim = 0; zhighlim = 0;
 }
 
 
 void TransformHelper::run(std::vector<Short_t> dtsegm4D_wheel, std::vector<Short_t> dtsegm4D_sector, std::vector<Short_t> dtsegm4D_station, TClonesArray *dtsegm4D_phi_hitsSuperLayer, TClonesArray *dtsegm4D_phi_hitsLayer, TClonesArray *dtsegm4D_phi_hitsPos, TClonesArray *dtsegm4D_phi_hitsSide, TClonesArray *dtsegm4D_phi_hitsWire, std::vector<Short_t> dtsegm4D_phinhits) {
   // We produce an artificial event taking segment info from various chambers and/or sectors and/or wheels until 20 hits are collected.
-  if (filled) return;
+  if (filled) {
+    if (debug) cout << "> Ignoring event..." << endl;
+    return;
+  }
   
   nevents += 1;
   if (nevents >= n_events_limit) return;
-  if (fmod((nevents + 1), 1000) == 0) cout << "Event: " << nevents + 1 << endl;
+//   if (fmod((nevents + 1), 1000) == 0) cout << "Event: " << nevents + 1 << endl;
   
-  cout << nevents << endl;
+  if (debug) {
+    cout << "nevents: " << nevents << endl;
+    cout << "ndtsegs: " << (Int_t)dtsegm4D_wheel.size() << endl;
+  }
   
   nhits = 0; nsegs = 0; actualhits = 0;
   Float_t z = 0, x1 = 0, x2 = 0;
   std::pair<Float_t, Float_t> p = {0, 0};
   
+  
+  if (debug) cout << "Beginning segments' loop..." << endl;
   for (Int_t idtsegments = 0; idtsegments < (Int_t)dtsegm4D_wheel.size(); idtsegments++) {                // i := segment index
     if ((dtsegm4D_wheel.at(idtsegments)   != wheel) &&   (wheel   != -3)) continue;
     if ((dtsegm4D_station.at(idtsegments) != chamber) && (chamber != -1)) continue;
     if ((dtsegm4D_sector.at(idtsegments)  != sector) &&  (sector  != -1)) continue;
+    if (debug) {
+      cout << "Segment number " << idtsegments << endl;
+      cout << "Wheel: " << dtsegm4D_wheel.at(idtsegments) << endl;
+      cout << "Chamber: " << dtsegm4D_station.at(idtsegments) << endl;
+      cout << "Sector: " << dtsegm4D_sector.at(idtsegments) << endl;
+      cout << "Beginning loop for all its digis..." << endl;
+    }
     for (Int_t idthits = 0; idthits < dtsegm4D_phinhits.at(idtsegments); idthits++) {
-      if ( ((TVectorF*)dtsegm4D_phi_hitsSuperLayer->At(idtsegments))[idthits] == 2) continue;
+      if (debug) cout << "Digi number " << idthits << endl;
+      if ( (Int_t)(*((TVectorF*)dtsegm4D_phi_hitsSuperLayer->At(idtsegments)))[idthits] == 2) continue;
 
-      z = getHitPosition( (Int_t*)(&(((TVectorF*)dtsegm4D_phi_hitsSuperLayer->At(idtsegments))[idthits])), (Int_t*)(&(((TVectorF*)dtsegm4D_phi_hitsLayer->At(idtsegments))[idthits])) );
+      if (debug) cout << "Superlayer: " << (*((TVectorF*)dtsegm4D_phi_hitsSuperLayer->At(idtsegments)))[idthits] << endl;
+      if (debug) cout << "Layer: " << (*((TVectorF*)dtsegm4D_phi_hitsLayer->At(idtsegments)))[idthits] << endl;
+      if (debug) cout << "Position: " << (*((TVectorF*)dtsegm4D_phi_hitsPos->At(idtsegments)))[idthits] << endl;
+      if (debug) cout << "Laterality: " << (*((TVectorF*)dtsegm4D_phi_hitsSide->At(idtsegments)))[idthits] << endl;
+      
+      z = getHitPosition( (Int_t)(*((TVectorF*)dtsegm4D_phi_hitsSuperLayer->At(idtsegments)))[idthits], (Int_t)(*((TVectorF*)dtsegm4D_phi_hitsLayer->At(idtsegments)))[idthits] );
 
-      p = getLRHitPosition( (Int_t*)(&(((TVectorF*)dtsegm4D_phi_hitsSuperLayer->At(idtsegments))[idthits])),
-                            (Int_t*)(&(((TVectorF*)dtsegm4D_phi_hitsLayer->At(idtsegments))[idthits])),
-                            (Float_t*)(&(((TVectorF*)dtsegm4D_phi_hitsPos->At(idtsegments))[idthits])),
-                            (Int_t*)(&(((TVectorF*)dtsegm4D_phi_hitsSide->At(idtsegments))[idthits])));
+      p = getLRHitPosition( (Int_t)(*((TVectorF*)dtsegm4D_phi_hitsSuperLayer->At(idtsegments)))[idthits],
+                            (Int_t)(*((TVectorF*)dtsegm4D_phi_hitsLayer->At(idtsegments)))[idthits],
+                            (Float_t)(*((TVectorF*)dtsegm4D_phi_hitsPos->At(idtsegments)))[idthits],
+                            (Int_t)(*((TVectorF*)dtsegm4D_phi_hitsSide->At(idtsegments)))[idthits] );
       x1 = p.first; x2 = p.second;
+      
+      if (debug) cout << "Positions obtained: x1=" << x1 << " x2=" << x2 << endl;
       
       occupancy->SetPoint(nhits,     x1, z);
       actualocc->SetPoint(actualhits,x1, z);
       occupancy->SetPoint(nhits + 1, x2, z);
       nhits += 2; actualhits += 1; nsegs += 1;
     }
+    if (nhits > nhitsmax) break;
   }
-  cout << nhits << endl;
+  if (debug) cout << "nhits " << nhits << endl;
   
   // if enough
-  if (nhits > nhitsmax) filled = true;
+  if (nhits > nhitsmax) {
+    filled = true;
+    if (debug) cout << "We have enough hits!" << endl;
+  }
   else {
     for (UInt_t i = 0; i < nhits; i++)      occupancy->RemovePoint(i);
     for (UInt_t i = 0; i < actualhits; i++) actualocc->RemovePoint(i);
@@ -1271,10 +1445,193 @@ void TransformHelper::run(std::vector<Short_t> dtsegm4D_wheel, std::vector<Short
 }
 
 
+void TransformHelper::run(std::vector<Short_t> digi_wheel, std::vector<Short_t> digi_sector, std::vector<Short_t> digi_station, std::vector<Short_t> digi_sl, std::vector<Short_t> digi_layer, std::vector<Short_t> digi_wire, std::vector<Float_t> digi_time) {
+  // We produce an artificial event taking segment info from various chambers and/or sectors and/or wheels until 20 hits are collected.
+  if (filled) {
+    if (debug) cout << "> Ignoring event..." << endl;
+    return;
+  }
+  
+  nevents += 1;
+  if (nevents >= n_events_limit) return;
+  
+  if (debug) {
+    cout << "nevents: " << nevents << endl;
+    cout << "ndigis: " << (Int_t)digi_wheel.size() << endl;
+  }
+  
+  nhits = 0; nseldigis = 0;
+  Float_t z = 0, x1 = 0, x2 = 0;
+  std::vector<Float_t> res;
+  res.clear();
+  
+  
+  if (debug) cout << "Beginning digis' loop..." << endl;
+  for (Int_t idigi = 0; idigi < (Int_t)digi_wheel.size(); idigi++) {
+    if ((digi_wheel.at(idigi)   != wheel) &&   (wheel   != -3)) continue;
+    if ((digi_station.at(idigi) != chamber) && (chamber != -1)) continue;
+    if ((digi_sector.at(idigi)  != sector) &&  (sector  != -1)) continue;
+    if (debug) {
+      cout << "Digi number " << idigi                  << endl;
+      cout << "Wheel: "      << digi_wheel.at(idigi)   << endl;
+      cout << "Chamber: "    << digi_station.at(idigi) << endl;
+      cout << "Sector: "     << digi_sector.at(idigi)  << endl;
+      cout << "Superlayer: " << digi_sl.at(idigi)      << endl;
+      cout << "Layer: "      << digi_layer.at(idigi)   << endl;
+      cout << "Wire: "       << digi_wire.at(idigi)    << endl;
+    }
+    if ( digi_sl.at(idigi) == 2) continue;
+
+    z   = getHitPosition( digi_sl.at(idigi), digi_layer.at(idigi) );
+    res = getDigiPosition(digi_sl.at(idigi), digi_layer.at(idigi), digi_wire.at(idigi), digi_time.at(idigi));
+    x1  = res.at(0); x2 = res.at(1);
+    
+    if (debug) cout << "Positions obtained: x1=" << x1 << " x2=" << x2 << endl;
+    
+    occupancy->SetPoint(nhits,     x1, z);
+    occupancy->SetPoint(nhits + 1, x2, z);
+    nhits += 2; nseldigis += 1;
+
+if (nhits > nhitsmax) break;
+  }
+  if (debug) cout << "nhits " << nhits << endl;
+  
+  // if enough
+  if (nhits > nhitsmax) {
+    filled = true;
+    if (debug) cout << "We have enough hits!" << endl;
+  }
+  else {
+    for (UInt_t i = 0; i < nhits; i++)      occupancy->RemovePoint(i);
+  }
+}
+
+
+
+void TransformHelper::run_one(edm::Handle<DTDigiSimLinkCollection> dtdigisSim, const DTGeometry* dtGeom_, const edm::Event& iEv, DTTTrigBaseSync *theSync, const DTMtime* mTimeMap) {
+  // We produce an artificial event taking segment info from various chambers and/or sectors and/or wheels until 20 hits are collected.
+  if (filled) {
+    if (debug) cout << "> Ignoring event...\n" << endl;
+    return;
+  }
+  
+  nevents += 1;
+  if (nevents >= n_events_limit) return;
+  
+  if (debug) {
+    cout << "\nnevents: " << nevents << endl;
+    cout << "ndigis: " << (Int_t)digi_wheel.size() << endl;
+  }
+  
+  nhits = 0; nseldigis = 0;
+  Float_t vDrift = 0.; Float_t resolution = 0.;
+  std::pair<Float_t, Float_t> res;
+  
+  
+  if (debug) cout << "Beginning digis' loop..." << endl;
+  Int_t idigi = 0;
+  for (DTDigiSimLinkCollection::DigiRangeIterator dtLayerIdIt = dtdigisSim->begin();      dtLayerIdIt != dtdigisSim->end();         dtLayerIdIt++) {
+    // Esti bucle va por el. de la digicoll. (un par DTLayerID, DTdigi). NOTA: el dtLayerIdIt NO es el DTLayerID del par, sino el par en total.
+    for (DTDigiSimLinkCollection::const_iterator  digiIt = ((*dtLayerIdIt).second).first; digiIt != ((*dtLayerIdIt).second).second; digiIt++) {
+//       (*dtLayerIdIt).first.wheel();
+//       (*dtLayerIdIt).first.sector();
+//       (*dtLayerIdIt).first.station();
+//       (*dtLayerIdIt).first.superLayer();
+//       (*dtLayerIdIt).first.layer();
+//       (*digiIt).wire();
+//       (*digiIt).time();
+      if ((*dtLayerIdIt).first.sector()  != sector)  continue;
+      if ((*dtLayerIdIt).first.wheel()   != wheel)   continue;
+      if ((*dtLayerIdIt).first.station() != chamber) continue;
+      if (debug) {
+        cout << "Digi number " << idigi                             << endl;
+        cout << "Wheel: "      << (*dtLayerIdIt).first.wheel()      << endl;
+        cout << "Chamber: "    << (*dtLayerIdIt).first.station()    << endl;
+        cout << "Sector: "     << (*dtLayerIdIt).first.sector()     << endl;
+        cout << "Superlayer: " << (*dtLayerIdIt).first.superLayer() << endl;
+        cout << "Layer: "      << (*dtLayerIdIt).first.layer()      << endl;
+        cout << "Wire: "       << (*digiIt).wire()                  << endl;
+      }
+      
+      if ((*dtLayerIdIt).first.superLayer() == 2) continue;
+      const DTLayer*  lay = dtGeom_->layer((*dtLayerIdIt).first);
+      
+      Float_t wireX = lay->specificTopology().wirePosition((*digiIt).wire());
+      LocalPoint  wirePosInLay(wireX, 0, 0);
+      GlobalPoint wirePosGlob      = lay->toGlobal(wirePosInLay);
+      LocalPoint  wirePosInChamber = lay->chamber()->toLocal(wirePosGlob);
+      
+      
+      if (xlowlim == 0 && xhighlim == 0 && zlowlim == 0 && zhighlim == 0) {
+        LocalPoint  FirstWireLocal(lay->chamber()->superLayer(1)->layer(1)->specificTopology().wirePosition(lay->chamber()->superLayer(1)->layer(1)->specificTopology().firstChannel()), 0, 0);  // TAKING INFO FROM L1 OF SL1 OF THE CHOSEN CHAMBER
+        GlobalPoint FirstWireGlobal  = lay->chamber()->superLayer(1)->layer(1)->toGlobal(FirstWireLocal);
+        LocalPoint  FirstWireLocalCh = lay->chamber()->toLocal(FirstWireGlobal);
+        xlowlim  = FirstWireLocalCh.x() - lay->chamber()->superLayer(1)->layer(1)->specificTopology().cellWidth()/2;
+        
+        LocalPoint  LastWireLocal(lay->chamber()->superLayer(1)->layer(1)->specificTopology().wirePosition(lay->chamber()->superLayer(1)->layer(1)->specificTopology().lastChannel()), 0, 0);
+        GlobalPoint LastWireGlobal  = lay->chamber()->superLayer(1)->layer(1)->toGlobal(LastWireLocal);
+        LocalPoint  LastWireLocalCh = lay->chamber()->toLocal(LastWireGlobal);
+        xhighlim  = LastWireLocalCh.x() + lay->chamber()->superLayer(1)->layer(1)->specificTopology().cellWidth()/2;
+        
+        zhighlim  = LastWireLocalCh.z() + lay->chamber()->superLayer(1)->layer(1)->specificTopology().cellHeight()/2;
+        
+        Int_t upsl = (*dtLayerIdIt).first.station() == 4 ? 2 : 3;
+        
+        LocalPoint  FirstWireLocalUp(lay->chamber()->superLayer(upsl)->layer(4)->specificTopology().wirePosition(lay->chamber()->superLayer(upsl)->layer(4)->specificTopology().firstChannel()), 0, 0);  // TAKING INFO FROM L1 OF SL1 OF THE CHOSEN CHAMBER
+        GlobalPoint FirstWireGlobalUp  = lay->chamber()->superLayer(upsl)->layer(4)->toGlobal(FirstWireLocalUp);
+        LocalPoint  FirstWireLocalChUp = lay->chamber()->toLocal(FirstWireGlobalUp);
+        zlowlim = FirstWireLocalChUp.z() - lay->chamber()->superLayer(upsl)->layer(4)->specificTopology().cellHeight()/2;
+      }
+      
+      if (debug) {
+        cout << "Indice del primer wire de la lay: "   << lay->specificTopology().firstChannel() << endl;
+        cout << "Indice del last wire de la lay: "     << lay->specificTopology().lastChannel()  << endl;
+        cout << "Anchu la celda: "                     << lay->specificTopology().cellWidth()    << endl;
+        cout << "Altu la celda: "                      << lay->specificTopology().cellHeight()   << endl;
+        cout << "Pos. (x) del primer wire de la lay: " << lay->specificTopology().wirePosition(lay->specificTopology().firstChannel()) << endl;
+        cout << "Pos. (x) del last wire de la lay: "   << lay->specificTopology().wirePosition(lay->specificTopology().lastChannel()) << endl;
+        
+        cout << "PosX.: " << wireX << endl;
+        cout << "pos x del vectorin: " << wirePosInChamber.x() << endl;
+        cout << "pos y del vectorin: " << wirePosInChamber.y() << endl;
+        cout << "pos z del vectorin: " << wirePosInChamber.z() << endl;
+      }
+      
+//       res = getDigiPosition(wireX, getPhase2Time(iEv, (*dtLayerIdIt).first.wheel(), (*dtLayerIdIt).first.station(), (*dtLayerIdIt).first.sector(), (*dtLayerIdIt).first.superLayer(), (*dtLayerIdIt).first.layer(), (*digiIt).wire(), (*digiIt).time(), theSync));
+      DTWireId wireId((*dtLayerIdIt).first, (*digiIt).wire());
+      mTimeMap->get(lay->superLayer()->id(), vDrift, resolution, DTVelocityUnits::cm_per_ns);
+      
+      res = getDigiPosition(wireX, (*digiIt).time() - theSync->offset(wireId), vDrift);
+      cout << "vDrift: " << vDrift << endl;
+      if (debug) cout << "Positions obtained: x1=" << res.first << " x2=" << res.second << endl;
+      
+      occupancy->SetPoint(nhits,     res.first, wirePosInChamber.z());
+      occupancy->SetPoint(nhits + 1, res.second, wirePosInChamber.z());
+      nhits += 2; nseldigis += 1;
+      
+      if (nhits > nhitsmax) break;
+      idigi++;
+    }
+  }
+  
+  if (debug) cout << "nhits " << nhits << endl;
+  
+  // if enough
+  if (nhits > nhitsmax) {
+    filled = true;
+    if (debug) cout << "We have enough hits!" << endl;
+  }
+  else {
+    for (UInt_t i = 0; i < nhits; i++)      occupancy->RemovePoint(i);
+  }
+}
+
+
 void TransformHelper::finish() {
   if (! filled) cerr << "> Not filled properly!" << endl;
   cout << "> Number of hits plotted: " << nhits << endl;
-  cout << "> Number of segments selected: " << nsegs << endl;
+  cout << "> Number of segments selected: " << nseldigis << endl;
+  
   
   // Now draw and save TGraph
   TCanvas* c1 = new TCanvas("c1", "Occupancy", 700, 700);
@@ -1293,22 +1650,31 @@ void TransformHelper::finish() {
   occupancy->Draw("AP");
   print_canvas(c1, "Occupancy_MB" + txtmb + "_Wh" + txtwh + "_S" + txtse);
   delete c1;
+  cout << "> Occupancy plot drawn." << endl;
   
   // now make HT
   TH2D* linespace; std::vector<std::pair<Float_t, Float_t>> maxima;
   linespace = makeHoughTransform(occupancy);
-//   if (doVarious) maxima = findLocalMaxima(linespace);
+//   p = findBestSegment(linespace);
+//   maximum   = new TGraph();
+//   maximum->SetPoint(0, p.first, p.second);
+  linespace->SetStats(false);
   TCanvas* c2 = new TCanvas("c2", "HT", 700, 700);
   c2->SetLeftMargin(0.15);
   
-  linespace->SetTitle("Linespace");
+  linespace->SetTitle("Line space");
   linespace->GetXaxis()->SetTitle("#theta (rad)");
   linespace->GetYaxis()->SetTitle("#rho (cm)");
   linespace->Draw("COLZ");
+//   maximum->Draw("same");
+//   maximum->SetMarkerStyle(43);
+//   maximum->SetMarkerSize(2);
+//   maximum->SetMarkerColor(kRed);
   print_canvas(c2, "HoughTransform_MB" + txtmb + "_Wh" + txtwh + "_S" + txtse);
   delete c2;
+  cout << "> Hough transform plot drawn." << endl;
   
-  TCanvas* c3 = new TCanvas("c1", "Occupancy", 700, 700);
+  TCanvas* c3 = new TCanvas("c3", "Occupancy", 700, 700);
   c3->SetLeftMargin(0.15);
   occupancy->SetTitle("x-z hits");
   occupancy->SetMarkerColor(kBlack);
@@ -1322,23 +1688,25 @@ void TransformHelper::finish() {
   occupancy->GetYaxis()->SetTitle("z coordinate (in cm)");
   occupancy->Draw("AP");
   
-  actualocc->SetMarkerColor(kAzure);
-  actualocc->SetMarkerStyle(5);
-  actualocc->SetMarkerSize(1);
-  actualocc->Draw("P");
-  
+  if (!doDigis) {
+    actualocc->SetMarkerColor(kAzure);
+    actualocc->SetMarkerStyle(5);
+    actualocc->SetMarkerSize(1);
+    actualocc->Draw("Psame");
+  }
+    
   // Now try to find segments
   if (! doVarious) {
     Float_t m = 0, n = 0;
     std::pair<Float_t, Float_t> p = {0, 0};
     p = findBestSegment(linespace);
     m = p.first; n = p.second;
-    TF1* segm = new TF1("seg", "[0]*x+[1]", -150, 150);
-    segm->SetParameters(m, n);
-    segm->SetLineColor(kRed);
-    segm->SetLineWidth(2);
-    segm->Draw("SAME");
-    delete segm;
+    cout << m << " " << n << endl;
+    TF1* tmpsegm = new TF1("seg", "[0]*x+[1]", (Float_t)((-5 - n)/m), (Float_t)((35 - n)/m));
+    tmpsegm->SetParameters(m, n);
+    tmpsegm->SetLineColor(kRed);
+    tmpsegm->SetLineWidth(2);
+    tmpsegm->Draw("same");
   }
   else {
     std::vector<TF1*> hmax;
@@ -1352,14 +1720,141 @@ void TransformHelper::finish() {
       tmpsegm->SetLineColor(kRed);
       tmpsegm->SetLineWidth(2);
       hmax.push_back((TF1*)tmpsegm->Clone(asdf));
-      delete tmpsegm;
-      hmax.back()->Draw("SAME");
+      hmax.back()->Draw("same");
     }
   }
-  print_canvas(c3, "Occupancy_MB" + txtmb + "_Wh" + txtwh + "_S" + txtse);
+  print_canvas(c3, "Occupancy_MB" + txtmb + "_Wh" + txtwh + "_S" + txtse + "_fit");
   delete c3;
+  if (tmpsegm) delete tmpsegm;
+  cout << "> Last plot drawn." << endl;
   return;
 }
+
+
+void TransformHelper::finish_one() {
+  if (! filled) cerr << "> Not filled properly!" << endl;
+  cout << "> Number of hits plotted: " << nhits << endl;
+  cout << "> Number of segments selected: " << nseldigis << endl;
+  
+//   if (debug) {
+//     cout << "> Limits:" << endl;
+//     cout << "x_high = " << xhighlim << endl;
+//     cout << "x_low = "  << xlowlim << endl;
+//     cout << "z_high = " << zhighlim << endl;
+//     cout << "z_low = "  << zlowlim << endl;
+//     cout << "Tolos puntos:" << endl;
+//     Double_t tmpx = 0; Double_t tmpy = 0;
+//     for ( Int_t ind = 0; ind < occupancy->GetN(); ind++ ) {
+//       occupancy->GetPoint(ind, tmpx, tmpy);
+// //       cout << "x: " << tmpx << endl;
+// //       cout << "y: " << tmpy << endl;
+//     }
+//   }
+  
+  // Now draw and save TGraph
+  TCanvas* c1 = new TCanvas("c1", "Occupancy", 700, 700);
+  c1->SetLeftMargin(0.15);
+  
+  occupancy->SetTitle("x-z hits");
+  occupancy->SetMarkerColor(kBlack);
+  occupancy->SetMarkerStyle(5);
+  occupancy->SetMarkerSize(1);
+  occupancy->GetXaxis()->SetLimits(xlowlim, xhighlim);
+  occupancy->GetXaxis()->SetRangeUser(xlowlim, xhighlim);
+  occupancy->GetXaxis()->SetTitle("x coordinate (in cm)");
+  occupancy->GetYaxis()->SetTitle("z coordinate (in cm)");
+  occupancy->GetYaxis()->SetLimits(zlowlim, zhighlim);
+  occupancy->GetYaxis()->SetRangeUser(zlowlim, zhighlim);
+  gPad->Update();
+//   occupancy->Draw("AP");
+  
+  DrawGraphWithReversedYAxis((TGraph*)occupancy->Clone("occtmp"));
+  print_canvas(c1, "Occupancy_MB" + txtmb + "_Wh" + txtwh + "_S" + txtse);
+  delete c1;
+  cout << "> Occupancy plot drawn." << endl;
+  
+  // now make HT
+  TH2D* linespace; std::vector<std::pair<Float_t, Float_t>> maxima;
+  linespace = makeHoughTransform(occupancy);
+//   p = findBestSegment(linespace);
+//   maximum   = new TGraph();
+//   maximum->SetPoint(0, p.first, p.second);
+  linespace->SetStats(false);
+  TCanvas* c2 = new TCanvas("c2", "HT", 700, 700);
+  c2->SetLeftMargin(0.15);
+  
+  linespace->SetTitle("Line space");
+  linespace->GetXaxis()->SetTitle("#theta (rad)");
+  linespace->GetYaxis()->SetTitle("#rho (cm)");
+  linespace->Draw("COLZ");
+//   maximum->Draw("same");
+//   maximum->SetMarkerStyle(43);
+//   maximum->SetMarkerSize(2);
+//   maximum->SetMarkerColor(kRed);
+  print_canvas(c2, "HoughTransform_MB" + txtmb + "_Wh" + txtwh + "_S" + txtse);
+  delete c2;
+  cout << "> Hough transform plot drawn." << endl;
+  
+  TCanvas* c3 = new TCanvas("c3", "Occupancy", 700, 700);
+  c3->SetLeftMargin(0.15);
+  occupancy->SetTitle("x-z hits");
+//   occupancy->SetMarkerColor(kBlack);
+//   occupancy->SetMinimum(-2);
+//   occupancy->SetMaximum(30);
+//   occupancy->SetMarkerStyle(5);
+//   occupancy->SetMarkerSize(1);
+//   occupancy->GetXaxis()->SetLimits(xlowlim, xhighlim);
+//   occupancy->GetXaxis()->SetTitle("x coordinate (in cm)");
+//   occupancy->GetYaxis()->SetTitle("z coordinate (in cm)");
+//   occupancy->GetYaxis()->SetLimits(zhighlim, zlowlim);
+//   occupancy->GetYaxis()->SetLimits(zlowlim, zhighlim);
+//   ReverseYAxis(occupancy);
+//   occupancy->Draw("AP");
+  DrawGraphWithReversedYAxis((TGraph*)occupancy->Clone("occtmp"));
+  
+  if (!doDigis) {
+    actualocc->SetMarkerColor(kAzure);
+    actualocc->SetMarkerStyle(5);
+    actualocc->SetMarkerSize(1);
+    actualocc->Draw("Psame");
+  }
+    
+  // Now try to find segments
+  if (! doVarious) {
+    Float_t m = 0, n = 0;
+    std::pair<Float_t, Float_t> p = {0, 0};
+    p = findBestSegment(linespace);
+    m = p.first; n = p.second;
+//     cout << m << " " << n << endl;
+//     cout << "m: " << -1 << ", n: " << -n << endl;
+    TF1* tmpsegm = new TF1("seg", "[0]*x+[1]", (Float_t)(-(zhighlim + n)/m), (Float_t)(-(zlowlim + n)/m) );
+    tmpsegm->SetParameters(-m, -n);
+    tmpsegm->SetLineColor(kRed);
+    tmpsegm->SetLineWidth(2);
+    tmpsegm->Draw("same");
+  }
+  else {
+    std::vector<TF1*> hmax;
+    hmax.clear();
+    for (UInt_t i = 0; i < maxima.size(); i++) {
+      TString asdf = "segmax_";
+      asdf += i;
+      TF1* tmpsegm = new TF1(asdf, "[0]*x+[1]", -150, 150);
+      cout << maxima.at(i).first << maxima.at(i).second << endl;
+      tmpsegm->SetParameters(maxima.at(i).first, maxima.at(i).second);
+      tmpsegm->SetLineColor(kRed);
+      tmpsegm->SetLineWidth(2);
+      hmax.push_back((TF1*)tmpsegm->Clone(asdf));
+      hmax.back()->Draw("same");
+    }
+  }
+  print_canvas(c3, "Occupancy_MB" + txtmb + "_Wh" + txtwh + "_S" + txtse + "_fit");
+  delete c3;
+  if (tmpsegm) delete tmpsegm;
+  cout << "> Last plot drawn." << endl;
+  return;
+}
+
 
 void TransformHelper::getvalues(const edm::Event& event) {
 //   event.getByLabel("dtsegm4D_wheel", dtsegm4D_wheel);
@@ -1371,6 +1866,56 @@ void TransformHelper::getvalues(const edm::Event& event) {
 //   event.getByLabel("dtsegm4D_phi_hitsPos", dtsegm4D_phi_hitsPos);
 //   event.getByLabel("dtsegm4D_phi_hitsSide", dtsegm4D_phi_hitsSide);
 //   event.getByLabel("dtsegm4D_phi_hitsWire", dtsegm4D_phi_hitsWire);
+}
+
+
+void TransformHelper::DrawGraphWithReversedYAxis(TGraph *g) {
+  g->SetMarkerSize(0);
+  g->GetYaxis()->SetLabelOffset(999);
+  g->GetYaxis()->SetTitleOffset(1.75);
+  g->GetYaxis()->SetTickLength(0);
+  g->Draw("APsame");
+
+
+  // Redraw the new axis
+  gPad->Update();
+  TGaxis *newaxis = new TGaxis(gPad->GetUxmin(),
+                               gPad->GetUymax(),
+                               gPad->GetUxmin() - 0.001,
+                               gPad->GetUymin(),
+                               g->GetYaxis()->GetXmin(),
+                               g->GetYaxis()->GetXmax(),
+                               510,"S-");
+  
+  newaxis->SetName(g->GetYaxis()->GetName());
+  
+  newaxis->SetLabelOffset(-0.05);
+  newaxis->SetLabelFont(g->GetYaxis()->GetLabelFont());
+  newaxis->SetLabelSize(g->GetYaxis()->GetLabelSize());
+  
+//   newaxis->SetTitle(g->GetYaxis()->GetTitle());
+//   newaxis->SetTitleOffset(g->GetYaxis()->GetTitleOffset());
+//   newaxis->SetTitleSize(g->GetYaxis()->GetTitleSize());
+  
+  newaxis->Draw("same");
+  
+  // Create a new graph
+  Int_t    n  = g->GetN();
+  Double_t *x = g->GetX();
+  Double_t *y = g->GetY();
+  Double_t yr[n];
+  Double_t dy = g->GetYaxis()->GetXmin() + g->GetYaxis()->GetXmax();
+//   cout << "dy: " << dy << endl;
+  for (UInt_t i = 0; i < (UInt_t)n; i++) {
+    yr[i] = -y[i] + dy;
+//     cout << "yprima: " << yr[i] << endl;
+  }
+  
+  TGraph *gr = new TGraph(n, x, yr);
+  gr->SetMarkerColor(kBlack);
+  gr->SetMarkerStyle(5);
+  gr->SetMarkerSize(1);
+  gr->Draw("Psame");
 }
 
 //define this as a plug-in
