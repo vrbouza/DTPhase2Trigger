@@ -159,7 +159,7 @@ process.source = cms.Source("PoolSource",
 
   fileNames = cms.untracked.vstring
   (
-    'file:/pool/cienciasrw/userstorage/vrbouza/ntuples/DT_ntuples/simulaciones/MuonGuns/CMSSW_10_1_1/src/UserCode/producers/Pt2_100_Eta1_24_B2B/step3_RAW2DIGI_L1Reco_RECO_RECOSIM_EI_PAT_VALIDATION_DQM_5.root',
+    'file:/pool/ciencias/userstorage/vrbouza/ntuples/DT_ntuples/simulaciones/MuonGuns/CMSSW_10_1_1/src/UserCode/producers/Pt2_100_Eta1_24_B2B/step3_RAW2DIGI_L1Reco_RECO_RECOSIM_EI_PAT_VALIDATION_DQM_5.root',
   ),
   secondaryFileNames = cms.untracked.vstring
   (
@@ -167,6 +167,7 @@ process.source = cms.Source("PoolSource",
 )
 
 process.load("UserCode/DTPhase2Trigger/DTPhase2Trigger_cfi")
+#process.load("UserCode/calibrateddigis/CalibratedDigis_cfi")
 
 process.myDTNtuple.localDTmuons = cms.untracked.bool(False)
 process.myDTNtuple.outputFile = "DTNtuple.root"
@@ -176,6 +177,7 @@ process.myDTNtuple.runOnSimulation = cms.bool(True)
 
 
 process.p = cms.Path(process.myDTNtuple)
+#process.p = cms.Path(process.CalibratedDigis + process.myDTNtuple)
 
 
 
